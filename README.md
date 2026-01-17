@@ -15,7 +15,7 @@ Unity package to integrate [Antigravity IDE](https://antigravity.google) as the 
 
 1. Open **Window > Package Manager**
 2. Click **+** > **Add package from git URL...**
-3. Enter: `https://github.com/ducminh1307/com.ducminh.antigravity.git`
+3. Enter: `https://github.com/ducminh1307/antigravity-unity.git`
 
 ### Manual Installation
 
