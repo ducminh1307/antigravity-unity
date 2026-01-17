@@ -4,10 +4,12 @@ Unity package to integrate [Antigravity IDE](https://antigravity.google) as the 
 
 ## Features
 
-- ✅ **Double-click to open files** - Opens scripts in Antigravity at the correct line
-- ✅ **Solution Generation** - Automatically generates `.sln` and `.csproj` files
-- ✅ **Workspace Setup** - Hides unnecessary Unity files/folders from IDE explorer
-- ✅ **Settings Sync** - Saves settings to ScriptableObject (shareable with team via VCS)
+- ✅ **Seamless Integration** - Double-click to open scripts at the correct line
+- ✅ **Auto Solution Generation** - Generates complete `.sln` file including all packages (Cinemachine, URP, etc.)
+- ✅ **C# Intellisense Fix** - Automatically creates `omnisharp.json` to fix C# 9.0+ language version issues (CS8370)
+- ✅ **Clean Workspace** - Generates configuration to hide irrelevant Unity files/folders (`.meta`, `Library`, etc.)
+- ✅ **Zero Config Setup** - Automatically runs setup when selected as External Editor
+- ✅ **Settings Sync** - Saves settings to ScriptableObject for easy team sharing via version control
 
 ## Installation
 
@@ -27,26 +29,28 @@ Unity package to integrate [Antigravity IDE](https://antigravity.google) as the 
 ### 1. Set Antigravity as External Editor
 - Go to **Edit > Preferences > External Tools**
 - Select **Antigravity IDE** from the dropdown
+- **Done!** The package will automatically:
+  - Generate the complete Solution (`.sln`)
+  - Create Workspace settings (`.vscode/settings.json`)
+  - Configure OmniSharp (`omnisharp.json`)
 
-### 2. Setup Workspace (Recommended)
-- Go to **Antigravity > Setup Workspace**
-- Creates settings to hide unnecessary Unity files in IDE
+### 2. Manual Actions (if needed)
 
-### 3. Regenerate Solution (Optional)
-- Go to **Antigravity > Regenerate Solution**
-- Creates/updates `.sln` and `.csproj` files
+| Menu Item | Description |
+|-----------|-------------|
+| **Antigravity > Regenerate Solution** | Force re-create `.sln` file. Use this if you add new packages or see missing references. |
+| **Antigravity > Setup Workspace** | Re-create workspace settings and omnisharp.json. |
+| **Antigravity > Settings** | Open configuration inspector (Path, Arguments). |
 
-### 4. Settings
-- Go to **Antigravity > Settings**
-- Configure executable path and other options
+## Troubleshooting
 
-## Menu Items
+- **C# Version Errors?** 
+  - Ensure `omnisharp.json` exists in project root (Run **Antigravity > Setup Workspace**).
+  - Restart Antigravity IDE.
 
-| Menu | Description |
-|------|-------------|
-| Antigravity > Settings | Open settings in Inspector |
-| Antigravity > Setup Workspace | Create `.vscode/settings.json` to hide folders |
-| Antigravity > Regenerate Solution | Create/update `.sln` file |
+- **Missing Packages in IDE?**
+  - Run **Antigravity > Regenerate Solution**.
+  - This custom generator ensures ALL projects (including Packages) are added to the solution.
 
 ## Requirements
 
