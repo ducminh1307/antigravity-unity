@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Linq;
 using System.Text;
 using System.Xml.Linq;
 using UnityEditor;
@@ -9,7 +8,8 @@ using UnityEngine;
 namespace Antigravity.Editor
 {
     /// <summary>
-    /// Handles generation and synchronization of .csproj and .sln files for Antigravity IDE.
+    /// Generates complete .sln solution files for Antigravity IDE.
+    /// Solution generation is MANUAL ONLY via the Antigravity > Regenerate Solution menu.
     /// </summary>
     public static class AntigravitySolutionSync
     {
@@ -17,136 +17,140 @@ namespace Antigravity.Editor
         private static string SolutionName => Path.GetFileName(ProjectPath);
         private static string SolutionPath => Path.Combine(ProjectPath, $"{SolutionName}.sln");
 
+
         /// <summary>
-        /// Regenerate solution and project files
+        /// Regenerate complete solution file
         /// </summary>
         [MenuItem("Antigravity/Regenerate Solution")]
         public static void RegenerateSolution()
         {
+            GenerateCompleteSolution();
+
+            EditorUtility.DisplayDialog(
+                "Antigravity",
+                $"Solution generated with all {CountCsprojFiles()} projects!\n\nReopen the project in Antigravity to see the changes.",
+                "OK");
+        }
+
+        /// <summary>
+        /// Generate solution silently (for first-time setup, no dialog)
+        /// </summary>
+        public static void GenerateSolutionSilent()
+        {
+            GenerateCompleteSolution();
+        }
+
+        private static int CountCsprojFiles()
+        {
+            return Directory.GetFiles(ProjectPath, "*.csproj", SearchOption.TopDirectoryOnly).Length;
+        }
+
+        /// <summary>
+        /// Generate a complete .sln file containing ALL .csproj files in the project
+        /// </summary>
+        private static void GenerateCompleteSolution()
+        {
             try
             {
-                // Use Unity's built-in synchronization first
-                UnityEditor.Compilation.CompilationPipeline.RequestScriptCompilation();
+                string[] csprojFiles = Directory.GetFiles(ProjectPath, "*.csproj", SearchOption.TopDirectoryOnly);
 
-                // Force project file generation
-                var syncVS = Type.GetType("UnityEditor.SyncVS, UnityEditor");
-                if (syncVS != null)
+                if (csprojFiles.Length == 0)
                 {
-                    var syncSolution = syncVS.GetMethod("SyncSolution",
-                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
-                    syncSolution?.Invoke(null, null);
+                    Debug.LogWarning("[Antigravity] No .csproj files found. Please compile scripts first.");
+                    return;
                 }
 
-                // Ensure solution file exists
-                EnsureSolutionExists();
+                var sb = new StringBuilder();
 
-                Debug.Log("[Antigravity] Solution regenerated successfully.");
+                // Solution header (Visual Studio 2022 format)
+                sb.AppendLine();
+                sb.AppendLine("Microsoft Visual Studio Solution File, Format Version 12.00");
+                sb.AppendLine("# Visual Studio Version 17");
+                sb.AppendLine("VisualStudioVersion = 17.0.31903.59");
+                sb.AppendLine("MinimumVisualStudioVersion = 10.0.40219.1");
+
+                // Add each project with its GUID from the .csproj file
+                foreach (string csprojPath in csprojFiles)
+                {
+                    string projectName = Path.GetFileNameWithoutExtension(csprojPath);
+                    string projectGuid = GetProjectGuid(csprojPath);
+                    string relativePath = Path.GetFileName(csprojPath);
+
+                    sb.AppendLine($"Project(\"{{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}}\") = \"{projectName}\", \"{relativePath}\", \"{{{projectGuid}}}\"");
+                    sb.AppendLine("EndProject");
+                }
+
+                // Global section
+                sb.AppendLine("Global");
+                sb.AppendLine("\tGlobalSection(SolutionConfigurationPlatforms) = preSolution");
+                sb.AppendLine("\t\tDebug|Any CPU = Debug|Any CPU");
+                sb.AppendLine("\t\tRelease|Any CPU = Release|Any CPU");
+                sb.AppendLine("\tEndGlobalSection");
+
+                sb.AppendLine("\tGlobalSection(ProjectConfigurationPlatforms) = postSolution");
+                foreach (string csprojPath in csprojFiles)
+                {
+                    string projectGuid = GetProjectGuid(csprojPath);
+
+                    sb.AppendLine($"\t\t{{{projectGuid}}}.Debug|Any CPU.ActiveCfg = Debug|Any CPU");
+                    sb.AppendLine($"\t\t{{{projectGuid}}}.Debug|Any CPU.Build.0 = Debug|Any CPU");
+                    sb.AppendLine($"\t\t{{{projectGuid}}}.Release|Any CPU.ActiveCfg = Release|Any CPU");
+                    sb.AppendLine($"\t\t{{{projectGuid}}}.Release|Any CPU.Build.0 = Release|Any CPU");
+                }
+                sb.AppendLine("\tEndGlobalSection");
+
+                sb.AppendLine("\tGlobalSection(SolutionProperties) = preSolution");
+                sb.AppendLine("\t\tHideSolutionNode = FALSE");
+                sb.AppendLine("\tEndGlobalSection");
+
+                sb.AppendLine("EndGlobal");
+
+                File.WriteAllText(SolutionPath, sb.ToString());
+                Debug.Log($"[Antigravity] Solution generated with {csprojFiles.Length} projects: {SolutionPath}");
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[Antigravity] Failed to regenerate solution: {ex.Message}");
+                Debug.LogError($"[Antigravity] Failed to generate solution: {ex.Message}");
             }
         }
 
         /// <summary>
-        /// Ensure a .sln file exists for the project
+        /// Extract the project GUID from a .csproj file
         /// </summary>
-        private static void EnsureSolutionExists()
+        private static string GetProjectGuid(string csprojPath)
         {
-            if (File.Exists(SolutionPath))
-                return;
-
-            // Find all .csproj files
-            string[] csprojFiles = Directory.GetFiles(ProjectPath, "*.csproj", SearchOption.TopDirectoryOnly);
-
-            if (csprojFiles.Length == 0)
+            try
             {
-                Debug.LogWarning("[Antigravity] No .csproj files found. Open a script to generate them.");
-                return;
+                XDocument doc = XDocument.Load(csprojPath);
+                XNamespace ns = doc.Root?.Name.Namespace ?? XNamespace.None;
+
+                // Try to find ProjectGuid element
+                var guidElement = doc.Root?.Element(ns + "PropertyGroup")?.Element(ns + "ProjectGuid");
+                if (guidElement != null)
+                {
+                    string guid = guidElement.Value.Trim('{', '}');
+                    return guid.ToUpperInvariant();
+                }
+            }
+            catch
+            {
+                // Ignore parsing errors
             }
 
-            GenerateSolutionFile(csprojFiles);
-        }
-
-        /// <summary>
-        /// Generate a .sln file containing all project references
-        /// </summary>
-        private static void GenerateSolutionFile(string[] csprojFiles)
-        {
-            var sb = new StringBuilder();
-
-            // Solution header
-            sb.AppendLine();
-            sb.AppendLine("Microsoft Visual Studio Solution File, Format Version 12.00");
-            sb.AppendLine("# Visual Studio Version 17");
-            sb.AppendLine("VisualStudioVersion = 17.0.31903.59");
-            sb.AppendLine("MinimumVisualStudioVersion = 10.0.40219.1");
-
-            // Add each project
-            foreach (string csproj in csprojFiles)
-            {
-                string projectName = Path.GetFileNameWithoutExtension(csproj);
-                string projectGuid = GenerateGuid(projectName);
-                string relativePath = Path.GetFileName(csproj);
-
-                sb.AppendLine($"Project(\"{{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}}\") = \"{projectName}\", \"{relativePath}\", \"{{{projectGuid}}}\"");
-                sb.AppendLine("EndProject");
-            }
-
-            // Global section
-            sb.AppendLine("Global");
-            sb.AppendLine("\tGlobalSection(SolutionConfigurationPlatforms) = preSolution");
-            sb.AppendLine("\t\tDebug|Any CPU = Debug|Any CPU");
-            sb.AppendLine("\t\tRelease|Any CPU = Release|Any CPU");
-            sb.AppendLine("\tEndGlobalSection");
-
-            sb.AppendLine("\tGlobalSection(ProjectConfigurationPlatforms) = postSolution");
-            foreach (string csproj in csprojFiles)
-            {
-                string projectName = Path.GetFileNameWithoutExtension(csproj);
-                string projectGuid = GenerateGuid(projectName);
-
-                sb.AppendLine($"\t\t{{{projectGuid}}}.Debug|Any CPU.ActiveCfg = Debug|Any CPU");
-                sb.AppendLine($"\t\t{{{projectGuid}}}.Debug|Any CPU.Build.0 = Debug|Any CPU");
-                sb.AppendLine($"\t\t{{{projectGuid}}}.Release|Any CPU.ActiveCfg = Release|Any CPU");
-                sb.AppendLine($"\t\t{{{projectGuid}}}.Release|Any CPU.Build.0 = Release|Any CPU");
-            }
-            sb.AppendLine("\tEndGlobalSection");
-
-            sb.AppendLine("\tGlobalSection(SolutionProperties) = preSolution");
-            sb.AppendLine("\t\tHideSolutionNode = FALSE");
-            sb.AppendLine("\tEndGlobalSection");
-
-            sb.AppendLine("EndGlobal");
-
-            File.WriteAllText(SolutionPath, sb.ToString());
+            // Generate deterministic GUID from project name
+            string projectName = Path.GetFileNameWithoutExtension(csprojPath);
+            return GenerateDeterministicGuid(projectName);
         }
 
         /// <summary>
         /// Generate a deterministic GUID based on project name
         /// </summary>
-        private static string GenerateGuid(string name)
+        private static string GenerateDeterministicGuid(string name)
         {
             using (var md5 = System.Security.Cryptography.MD5.Create())
             {
                 byte[] hash = md5.ComputeHash(Encoding.UTF8.GetBytes(name));
                 return new Guid(hash).ToString().ToUpperInvariant();
-            }
-        }
-
-        /// <summary>
-        /// Called when scripts are recompiled
-        /// </summary>
-        [InitializeOnLoadMethod]
-        private static void OnScriptsRecompiled()
-        {
-            if (AntigravitySettings.Instance.autoRegenerateSolution)
-            {
-                // Delay to ensure Unity has finished its work
-                EditorApplication.delayCall += () =>
-                {
-                    EnsureSolutionExists();
-                };
             }
         }
     }

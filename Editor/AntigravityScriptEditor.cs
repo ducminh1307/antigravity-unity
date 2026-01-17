@@ -118,6 +118,9 @@ namespace Antigravity.Editor
             {
                 EditorPath = editorInstallationPath;
             }
+
+            // Perform first-time setup when Antigravity is selected
+            AntigravitySettings.Instance.PerformFirstTimeSetup();
         }
 
         public bool OpenProject(string filePath = "", int line = -1, int column = -1)
@@ -250,17 +253,18 @@ namespace Antigravity.Editor
 
         public void SyncAll()
         {
-            // Antigravity IDE doesn't need explicit project file synchronization
-            // Unity generates .csproj files automatically
-            // DO NOT call CodeEditor.CurrentEditor.SyncAll() - it causes infinite recursion!
+            // IMPORTANT: Do NOT call SyncVS here!
+            // SyncVS.SyncSolution() calls IExternalCodeEditor.SyncAll() which causes infinite recursion
+            // Solution generation is handled separately via "Antigravity > Regenerate Solution" menu
         }
 
         public void SyncIfNeeded(string[] addedFiles, string[] deletedFiles, string[] movedFiles, string[] movedFromFiles, string[] importedFiles)
         {
-            // Antigravity IDE doesn't need explicit project file synchronization
-            // Unity generates .csproj files automatically
-            // DO NOT call CodeEditor.CurrentEditor.SyncIfNeeded() - it causes infinite recursion!
+            // IMPORTANT: Do NOT call SyncVS here!
+            // Solution generation is handled separately via "Antigravity > Regenerate Solution" menu
         }
+
+
 
         public bool TryGetInstallationForPath(string editorPath, out CodeEditor.Installation installation)
         {
@@ -297,25 +301,10 @@ namespace Antigravity.Editor
 
                 ProcessStartInfo startInfo = new ProcessStartInfo();
 
-                // Handle paths with spaces by using cmd /c on Windows
-#if UNITY_EDITOR_WIN
-                if (editorPath.Contains(" "))
-                {
-                    startInfo.FileName = "cmd.exe";
-                    startInfo.Arguments = $"/c \"\"{editorPath}\" {arguments}\"";
-                }
-                else
-                {
-                    startInfo.FileName = editorPath;
-                    startInfo.Arguments = arguments;
-                }
-#else
+                // Directly use the executable path - UseShellExecute handles spaces properly
                 startInfo.FileName = editorPath;
                 startInfo.Arguments = arguments;
-#endif
-
                 startInfo.UseShellExecute = true;
-                startInfo.CreateNoWindow = false;
                 startInfo.WorkingDirectory = Path.GetDirectoryName(editorPath) ?? "";
 
                 Process process = Process.Start(startInfo);

@@ -24,6 +24,12 @@ namespace Antigravity.Editor
                 // Silently create settings without dialog
                 SetupWorkspaceSilent();
             }
+
+            // Always ensure omnisharp.json exists for correct C# language version
+            if (!IsOmnisharpSetup)
+            {
+                SetupOmnisharpSilent();
+            }
         }
 
         private static void SetupWorkspaceSilent()
@@ -44,9 +50,24 @@ namespace Antigravity.Editor
                 // Silently fail - user can manually run Setup Workspace
             }
         }
+
+        private static void SetupOmnisharpSilent()
+        {
+            try
+            {
+                File.WriteAllText(OmnisharpPath, OMNISHARP_CONTENT);
+            }
+            catch (System.Exception)
+            {
+                // Silently fail
+            }
+        }
+
         private static string ProjectPath => Directory.GetParent(Application.dataPath).FullName;
         private static string VscodeFolderPath => Path.Combine(ProjectPath, ".vscode");
         private static string SettingsPath => Path.Combine(VscodeFolderPath, "settings.json");
+        private static string OmnisharpPath => Path.Combine(ProjectPath, "omnisharp.json");
+
 
         // Folders to exclude from Unity projects
         private const string SETTINGS_CONTENT = @"{
@@ -151,5 +172,23 @@ namespace Antigravity.Editor
         /// Check if workspace is already set up
         /// </summary>
         public static bool IsWorkspaceSetup => File.Exists(SettingsPath);
+
+        /// <summary>
+        /// Check if omnisharp.json is already set up
+        /// </summary>
+        public static bool IsOmnisharpSetup => File.Exists(OmnisharpPath);
+
+        // OmniSharp configuration for correct C# language version
+        private const string OMNISHARP_CONTENT = @"{
+    ""RoslynExtensionsOptions"": {
+        ""enableAnalyzersSupport"": true
+    },
+    ""MsBuild"": {
+        ""UseBundledOnly"": true
+    },
+    ""FormattingOptions"": {
+        ""enableEditorConfigSupport"": true
+    }
+}";
     }
 }

@@ -23,9 +23,9 @@ namespace Antigravity.Editor
         [Tooltip("Arguments format. Variables: $(File), $(Line), $(Column)")]
         public string argumentsFormat = "$(File):$(Line)";
 
-        [Header("Project")]
-        [Tooltip("Auto-regenerate solution on script changes")]
-        public bool autoRegenerateSolution = true;
+        [HideInInspector]
+        [Tooltip("Has the first-time setup been completed?")]
+        public bool hasInitialized = false;
 
         /// <summary>
         /// Get or create the settings instance
@@ -109,8 +109,28 @@ namespace Antigravity.Editor
         {
             executablePath = "";
             argumentsFormat = "$(File):$(Line)";
-            autoRegenerateSolution = true;
+            hasInitialized = false;
             Save();
+        }
+
+        /// <summary>
+        /// Perform first-time setup when user selects Antigravity for the first time
+        /// </summary>
+        public void PerformFirstTimeSetup()
+        {
+            if (hasInitialized)
+                return;
+
+            hasInitialized = true;
+            Save();
+
+            // Delay the heavy operations to avoid asset database conflicts
+            EditorApplication.delayCall += () =>
+            {
+                // Run solution regeneration (without dialog for first-time)
+                AntigravitySolutionSync.GenerateSolutionSilent();
+                Debug.Log("[Antigravity] First-time setup completed. Solution and workspace configured.");
+            };
         }
 
         /// <summary>
