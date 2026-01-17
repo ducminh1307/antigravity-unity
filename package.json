@@ -1,0 +1,22 @@
+{
+    "name": "com.ducminh.antigravity",
+    "version": "1.0.0",
+    "displayName": "Antigravity IDE Integration",
+    "description": "Integrates Antigravity IDE as the external code editor for Unity",
+    "unity": "2020.3",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/YOUR_USERNAME/com.ducminh.antigravity.git"
+    },
+    "author": {
+        "name": "Duc Minh"
+    },
+    "keywords": [
+        "editor",
+        "ide",
+        "antigravity",
+        "code-editor",
+        "external-editor"
+    ]
+}
