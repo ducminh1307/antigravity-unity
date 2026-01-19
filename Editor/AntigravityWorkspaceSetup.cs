@@ -178,16 +178,32 @@ namespace Antigravity.Editor
         /// </summary>
         public static bool IsOmnisharpSetup => File.Exists(OmnisharpPath);
 
-        // OmniSharp configuration for correct C# language version
+        // OmniSharp configuration for Unity projects
+        // This ensures OmniSharp loads the .sln file and resolves UnityEngine references
         private const string OMNISHARP_CONTENT = @"{
     ""RoslynExtensionsOptions"": {
-        ""enableAnalyzersSupport"": true
+        ""enableAnalyzersSupport"": true,
+        ""enableImportCompletion"": true
     },
     ""MsBuild"": {
-        ""UseBundledOnly"": true
+        ""LoadProjectsOnDemand"": false
     },
     ""FormattingOptions"": {
-        ""enableEditorConfigSupport"": true
+        ""enableEditorConfigSupport"": true,
+        ""organizeImports"": true
+    },
+    ""FileOptions"": {
+        ""SystemExcludeSearchPatterns"": [
+            ""**/node_modules/**/*"",
+            ""**/bin/**/*"",
+            ""**/obj/**/*"",
+            ""**/.git/**/*"",
+            ""**/Library/**/*"",
+            ""**/Temp/**/*""
+        ]
+    },
+    ""Sdk"": {
+        ""IncludePrereleases"": true
     }
 }";
     }
