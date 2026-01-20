@@ -36,14 +36,12 @@ namespace Antigravity.Editor
             if (string.IsNullOrEmpty(stackTrace))
                 return false;
 
-            // Try simple path format first: (at Assets/Script.cs:42)
             var simpleMatch = SimplePathRegex.Match(stackTrace);
             if (simpleMatch.Success)
             {
                 filePath = simpleMatch.Groups["path"].Value;
                 lineNumber = int.Parse(simpleMatch.Groups["line"].Value);
 
-                // Convert relative path to absolute
                 if (filePath.StartsWith("Assets"))
                 {
                     filePath = System.IO.Path.GetFullPath(filePath);
@@ -52,7 +50,6 @@ namespace Antigravity.Editor
                 return true;
             }
 
-            // Try full path format
             var match = StackTraceRegex.Match(stackTrace);
             if (match.Success)
             {

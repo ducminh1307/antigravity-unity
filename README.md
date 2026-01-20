@@ -5,11 +5,14 @@ Unity package to integrate [Antigravity IDE](https://antigravity.google) as the 
 ## Features
 
 - ✅ **Seamless Integration** - Double-click to open scripts at the correct line
-- ✅ **Auto Solution Generation** - Generates complete `.sln` file including all packages (Cinemachine, URP, etc.)
-- ✅ **C# Intellisense Fix** - Automatically creates `omnisharp.json` to fix C# 9.0+ language version issues (CS8370)
+- ✅ **Auto Solution Generation** - Generates complete `.sln` file including all packages
+- ✅ **Package Filter Settings** - Customize which package types to include in solution (Embedded, Local, Registry, Git, etc.)
+- ✅ **Full Intellisense Support** - "Go to Definition" works immediately for all enabled packages
+- ✅ **C# 9.0+ Support** - Automatically creates `omnisharp.json` to fix language version issues (CS8370)
 - ✅ **Clean Workspace** - Generates configuration to hide irrelevant Unity files/folders (`.meta`, `Library`, etc.)
 - ✅ **Zero Config Setup** - Automatically runs setup when selected as External Editor
 - ✅ **Settings Sync** - Saves settings to ScriptableObject for easy team sharing via version control
+
 
 ## Installation
 
@@ -42,15 +45,44 @@ Unity package to integrate [Antigravity IDE](https://antigravity.google) as the 
 | **Antigravity > Setup Workspace** | Re-create workspace settings and omnisharp.json. |
 | **Antigravity > Settings** | Open configuration inspector (Path, Arguments). |
 
+### 3. Package Filter Settings
+
+Control which package types are included in solution generation:
+
+1. Go to **Edit > Preferences > Antigravity**
+2. Customize "Generate .csproj files for:" section:
+   - ✅ **Embedded packages** - Packages in `Packages/` folder within project
+   - ✅ **Local packages** - Packages referenced by file path (recommended for custom packages)
+   - ⬜ **Registry packages** - Packages from Unity Registry (disable to reduce noise)
+   - ⬜ **Git packages** - Packages from Git repositories
+   - ⬜ **Built-in packages** - Unity built-in packages (`com.unity.*`)
+   - ⬜ **Local tarball** - Packages from `.tgz` files
+   - ⬜ **Unknown sources** - Other packages
+   - ✅ **Player projects** - `Assembly-CSharp` and project assemblies
+3. Click **"Regenerate Project Files"** to apply changes
+4. Reopen project in Antigravity IDE
+
+**Benefits:**
+- 🚀 Faster IDE startup (fewer projects to load)
+- ✅ Full Intellisense for enabled packages
+- 🎯 "Go to Definition" works immediately
+
 ## Troubleshooting
 
+- **"Go to Definition" Not Working?**
+  - Go to **Edit > Preferences > Antigravity**
+  - Ensure your package type is enabled (e.g., enable "Local packages" for custom packages)
+  - Click **"Regenerate Project Files"**
+  - Restart Antigravity IDE
+
 - **C# Version Errors?** 
-  - Ensure `omnisharp.json` exists in project root (Run **Antigravity > Setup Workspace**).
-  - Restart Antigravity IDE.
+  - Ensure `omnisharp.json` exists in project root (Run **Antigravity > Setup Workspace**)
+  - Restart Antigravity IDE
 
 - **Missing Packages in IDE?**
-  - Run **Antigravity > Regenerate Solution**.
-  - This custom generator ensures ALL projects (including Packages) are added to the solution.
+  - Check **Edit > Preferences > Antigravity** - Enable the package types you need
+  - Run **Antigravity > Regenerate Solution**
+  - Solution generator includes all enabled package types
 
 ## Requirements
 

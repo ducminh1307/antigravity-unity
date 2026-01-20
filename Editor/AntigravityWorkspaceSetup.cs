@@ -12,20 +12,16 @@ namespace Antigravity.Editor
     {
         static AntigravityWorkspaceSetup()
         {
-            // Auto-setup workspace when Unity opens (delayed to avoid startup issues)
             EditorApplication.delayCall += AutoSetupWorkspace;
         }
 
         private static void AutoSetupWorkspace()
         {
-            // Only create if settings don't exist yet
             if (!IsWorkspaceSetup)
             {
-                // Silently create settings without dialog
                 SetupWorkspaceSilent();
             }
 
-            // Always ensure omnisharp.json exists for correct C# language version
             if (!IsOmnisharpSetup)
             {
                 SetupOmnisharpSilent();
@@ -36,18 +32,15 @@ namespace Antigravity.Editor
         {
             try
             {
-                // Create .vscode folder if it doesn't exist
                 if (!Directory.Exists(VscodeFolderPath))
                 {
                     Directory.CreateDirectory(VscodeFolderPath);
                 }
 
-                // Write settings file
                 File.WriteAllText(SettingsPath, SETTINGS_CONTENT);
             }
             catch (System.Exception)
             {
-                // Silently fail - user can manually run Setup Workspace
             }
         }
 
@@ -59,7 +52,6 @@ namespace Antigravity.Editor
             }
             catch (System.Exception)
             {
-                // Silently fail
             }
         }
 
@@ -69,7 +61,6 @@ namespace Antigravity.Editor
         private static string OmnisharpPath => Path.Combine(ProjectPath, "omnisharp.json");
 
 
-        // Folders to exclude from Unity projects
         private const string SETTINGS_CONTENT = @"{
     ""files.exclude"": {
         ""**/.git"": true,
@@ -136,16 +127,13 @@ namespace Antigravity.Editor
         [MenuItem("Antigravity/Setup Workspace")]
         public static void SetupWorkspace()
         {
-            // Create .vscode folder if it doesn't exist
             if (!Directory.Exists(VscodeFolderPath))
             {
                 Directory.CreateDirectory(VscodeFolderPath);
             }
 
-            // Check if settings.json already exists
             if (File.Exists(SettingsPath))
             {
-                // Ask user if they want to overwrite
                 if (!EditorUtility.DisplayDialog(
                     "Antigravity Workspace Setup",
                     "settings.json already exists. Do you want to overwrite it with Unity-optimized settings?",
@@ -155,10 +143,8 @@ namespace Antigravity.Editor
                 }
             }
 
-            // Write settings file
             File.WriteAllText(SettingsPath, SETTINGS_CONTENT);
 
-            // Refresh asset database
             AssetDatabase.Refresh();
 
             Debug.Log("[Antigravity] Workspace settings created at: " + SettingsPath);
@@ -178,8 +164,6 @@ namespace Antigravity.Editor
         /// </summary>
         public static bool IsOmnisharpSetup => File.Exists(OmnisharpPath);
 
-        // OmniSharp configuration for Unity projects
-        // This ensures OmniSharp loads the .sln file and resolves UnityEngine references
         private const string OMNISHARP_CONTENT = @"{
     ""RoslynExtensionsOptions"": {
         ""enableAnalyzersSupport"": true,

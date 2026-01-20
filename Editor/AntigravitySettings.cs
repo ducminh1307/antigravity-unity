@@ -23,6 +23,31 @@ namespace Antigravity.Editor
         [Tooltip("Arguments format. Variables: $(File), $(Line), $(Column)")]
         public string argumentsFormat = "$(File):$(Line)";
 
+        [Header("Generate .csproj files for:")]
+        [Tooltip("Include embedded packages in solution")]
+        public bool includeEmbeddedPackages = true;
+
+        [Tooltip("Include local packages (file: or path references) in solution")]
+        public bool includeLocalPackages = true;
+
+        [Tooltip("Include registry packages (from Unity Registry or scoped registries) in solution")]
+        public bool includeRegistryPackages = false;
+
+        [Tooltip("Include Git packages in solution")]
+        public bool includeGitPackages = false;
+
+        [Tooltip("Include built-in Unity packages (com.unity.*) in solution")]
+        public bool includeBuiltinPackages = false;
+
+        [Tooltip("Include local tarball packages in solution")]
+        public bool includeLocalTarball = false;
+
+        [Tooltip("Include packages from unknown sources in solution")]
+        public bool includeUnknownPackages = false;
+
+        [Tooltip("Include player projects (Assembly-CSharp, etc.) in solution")]
+        public bool includePlayerProjects = true;
+
         [HideInInspector]
         [Tooltip("Has the first-time setup been completed?")]
         public bool hasInitialized = false;
@@ -44,12 +69,10 @@ namespace Antigravity.Editor
 
         private static AntigravitySettings LoadOrCreate()
         {
-            // Try to load existing settings
             var settings = AssetDatabase.LoadAssetAtPath<AntigravitySettings>(SETTINGS_PATH);
 
             if (settings == null)
             {
-                // Try to find in project
                 string[] guids = AssetDatabase.FindAssets("t:AntigravitySettings");
                 if (guids.Length > 0)
                 {
@@ -60,13 +83,8 @@ namespace Antigravity.Editor
 
             if (settings == null)
             {
-                // Create new settings
                 settings = CreateInstance<AntigravitySettings>();
-
-                // Migrate from EditorPrefs if available
                 MigrateFromEditorPrefs(settings);
-
-                // Ensure folder exists
                 if (!Directory.Exists(SETTINGS_FOLDER))
                 {
                     Directory.CreateDirectory(SETTINGS_FOLDER);
@@ -109,6 +127,14 @@ namespace Antigravity.Editor
         {
             executablePath = "";
             argumentsFormat = "$(File):$(Line)";
+            includeEmbeddedPackages = true;
+            includeLocalPackages = true;
+            includeRegistryPackages = false;
+            includeGitPackages = false;
+            includeBuiltinPackages = false;
+            includeLocalTarball = false;
+            includeUnknownPackages = false;
+            includePlayerProjects = true;
             hasInitialized = false;
             Save();
         }
