@@ -4,85 +4,76 @@ Unity package to integrate [Antigravity IDE](https://antigravity.google) as the 
 
 ## Features
 
-- ✅ **Seamless Integration** - Double-click to open scripts at the correct line
-- ✅ **Auto Solution Generation** - Generates complete `.sln` file including all packages
-- ✅ **Package Filter Settings** - Customize which package types to include in solution (Embedded, Local, Registry, Git, etc.)
-- ✅ **Full Intellisense Support** - "Go to Definition" works immediately for all enabled packages
-- ✅ **C# 9.0+ Support** - Automatically creates `omnisharp.json` to fix language version issues (CS8370)
-- ✅ **Clean Workspace** - Generates configuration to hide irrelevant Unity files/folders (`.meta`, `Library`, etc.)
-- ✅ **Zero Config Setup** - Automatically runs setup when selected as External Editor
-- ✅ **Settings Sync** - Saves settings to ScriptableObject for easy team sharing via version control
-
+- Seamless integration: double-click scripts to open the correct file and line.
+- Complete solution generation: builds a `.sln` that includes the Unity projects and selected package sources.
+- Package filters: choose whether to include embedded, local, registry, git, built-in, tarball, or unknown packages.
+- Better IntelliSense: generated solutions improve navigation and "Go to Definition" for enabled packages.
+- Workspace setup: creates `.vscode/settings.json` and `omnisharp.json` when Antigravity is selected as the external editor.
+- Team-friendly settings: shared solution filters live in a project asset, while local executable settings stay machine-specific.
 
 ## Installation
 
-### From GitHub (Unity 2019.3+)
+### From GitHub
 
 1. Open **Window > Package Manager**
 2. Click **+** > **Add package from git URL...**
-3. Enter: `https://github.com/ducminh1307/antigravity-unity.git`
+3. Enter `https://github.com/ducminh1307/antigravity-unity.git`
 
 ### Manual Installation
 
-1. Clone this repo into your Unity project's `Packages/` folder
-2. Or download ZIP and extract to `Packages/com.ducminh.antigravity/`
+1. Clone this repository into your Unity project's `Packages/` folder
+2. Or extract it to `Packages/com.ducminh.antigravity/`
 
 ## Usage
 
-### 1. Set Antigravity as External Editor
-- Go to **Edit > Preferences > External Tools**
-- Select **Antigravity IDE** from the dropdown
-- **Done!** The package will automatically:
-  - Generate the complete Solution (`.sln`)
-  - Create Workspace settings (`.vscode/settings.json`)
-  - Configure OmniSharp (`omnisharp.json`)
+### 1. Select Antigravity as the external editor
 
-### 2. Manual Actions (if needed)
+1. Go to **Edit > Preferences > External Tools**
+2. Select **Antigravity IDE**
+3. On first selection, the package will:
+   - Generate the solution file
+   - Create `.vscode/settings.json`
+   - Create `omnisharp.json`
+
+### 2. Configure preferences
+
+Go to **Edit > Preferences > Antigravity**.
+
+- `Executable Path` and `Arguments Format` are local-machine settings.
+- Package inclusion toggles are shared project settings stored in the repo.
+
+Supported argument variables:
+
+- `$(ProjectPath)`
+- `$(File)`
+- `$(Line)`
+- `$(Column)`
+
+Default format:
+
+```text
+$(ProjectPath) --goto $(File):$(Line):$(Column)
+```
+
+### 3. Manual menu actions
 
 | Menu Item | Description |
 |-----------|-------------|
-| **Antigravity > Regenerate Solution** | Force re-create `.sln` file. Use this if you add new packages or see missing references. |
-| **Antigravity > Setup Workspace** | Re-create workspace settings and omnisharp.json. |
-| **Antigravity > Settings** | Open configuration inspector (Path, Arguments). |
-
-### 3. Package Filter Settings
-
-Control which package types are included in solution generation:
-
-1. Go to **Edit > Preferences > Antigravity**
-2. Customize "Generate .csproj files for:" section:
-   - ✅ **Embedded packages** - Packages in `Packages/` folder within project
-   - ✅ **Local packages** - Packages referenced by file path (recommended for custom packages)
-   - ⬜ **Registry packages** - Packages from Unity Registry (disable to reduce noise)
-   - ⬜ **Git packages** - Packages from Git repositories
-   - ⬜ **Built-in packages** - Unity built-in packages (`com.unity.*`)
-   - ⬜ **Local tarball** - Packages from `.tgz` files
-   - ⬜ **Unknown sources** - Other packages
-   - ✅ **Player projects** - `Assembly-CSharp` and project assemblies
-3. Click **"Regenerate Project Files"** to apply changes
-4. Reopen project in Antigravity IDE
-
-**Benefits:**
-- 🚀 Faster IDE startup (fewer projects to load)
-- ✅ Full Intellisense for enabled packages
-- 🎯 "Go to Definition" works immediately
+| **Antigravity > Preview Project Selection** | Print which projects will be included or skipped, with detection reasons, to the Console. |
+| **Antigravity > Regenerate Solution** | Rebuild the `.sln` file using the current package filters. |
+| **Antigravity > Setup Workspace** | Recreate `.vscode/settings.json` and `omnisharp.json`. |
+| **Antigravity > Settings** | Select the shared settings asset in the Inspector. |
 
 ## Troubleshooting
 
-- **"Go to Definition" Not Working?**
-  - Go to **Edit > Preferences > Antigravity**
-  - Ensure your package type is enabled (e.g., enable "Local packages" for custom packages)
-  - Click **"Regenerate Project Files"**
-  - Restart Antigravity IDE
+- "Go to Definition" is missing:
+  Go to **Edit > Preferences > Antigravity**, enable the package source you need, regenerate project files, then reopen Antigravity.
 
-- **C# Version Errors?** 
-  - Ensure `omnisharp.json` exists in project root (Run **Antigravity > Setup Workspace**)
-  - Restart Antigravity IDE
+- C# language/version errors appear:
+  Run **Antigravity > Setup Workspace** and reopen Antigravity so it reloads `omnisharp.json`.
 
-- **Missing Packages in IDE?**
-  - Check **Edit > Preferences > Antigravity** - Enable the package types you need
-  - Run **Antigravity > Regenerate Solution**
-  - Solution generator includes all enabled package types
+- A package is missing from the solution:
+  Check whether its package source is enabled in **Preferences > Antigravity**, then regenerate the solution.
 
 ## Requirements
 

@@ -4,6 +4,8 @@ using System.Text;
 using System.Xml.Linq;
 using UnityEditor;
 using UnityEngine;
+using PackageInfo = UnityEditor.PackageManager.PackageInfo;
+using PackageSource = UnityEditor.PackageManager.PackageSource;
 
 namespace Antigravity.Editor
 {
@@ -24,11 +26,13 @@ namespace Antigravity.Editor
         [MenuItem("Antigravity/Regenerate Solution")]
         public static void RegenerateSolution()
         {
-            GenerateCompleteSolution();
+            int generatedProjectCount = GenerateCompleteSolution();
 
             EditorUtility.DisplayDialog(
                 "Antigravity",
-                $"Solution generated with all {CountCsprojFiles()} projects!\n\nReopen the project in Antigravity to see the changes.",
+                generatedProjectCount > 0
+                    ? $"Solution generated with {generatedProjectCount} projects.\n\nReopen the project in Antigravity to see the changes."
+                    : "No projects were generated. Check the Console for details.",
                 "OK");
         }
 
@@ -40,15 +44,23 @@ namespace Antigravity.Editor
             GenerateCompleteSolution();
         }
 
-        private static int CountCsprojFiles()
+        [MenuItem("Antigravity/Preview Project Selection")]
+        public static void PreviewProjectSelection()
         {
-            return Directory.GetFiles(ProjectPath, "*.csproj", SearchOption.TopDirectoryOnly).Length;
+            string report = BuildProjectSelectionReport(out int includedCount, out int skippedCount);
+            Debug.Log(report);
+
+            EditorUtility.DisplayDialog(
+                "Antigravity",
+                $"Project selection preview written to the Console.\n\nIncluded: {includedCount}\nSkipped: {skippedCount}",
+                "OK"
+            );
         }
 
         /// <summary>
         /// Generate a complete .sln file containing ALL .csproj files in the project
         /// </summary>
-        private static void GenerateCompleteSolution()
+        private static int GenerateCompleteSolution()
         {
             try
             {
@@ -57,31 +69,32 @@ namespace Antigravity.Editor
                 if (allCsprojFiles.Length == 0)
                 {
                     Debug.LogWarning("[Antigravity] No .csproj files found. Please compile scripts first.");
-                    return;
+                    return 0;
                 }
 
                 var settings = AntigravitySettings.Instance;
                 var filteredCsprojFiles = new System.Collections.Generic.List<string>();
+                int skippedProjectCount = 0;
 
                 foreach (string csprojPath in allCsprojFiles)
                 {
-                    string projectName = Path.GetFileNameWithoutExtension(csprojPath);
-                    PackageType packageType = DeterminePackageType(projectName);
+                    ProjectClassification classification = ClassifyProject(csprojPath);
 
-                    if (ShouldIncludePackage(packageType, settings))
+                    if (ShouldIncludePackage(classification.PackageType, settings))
                     {
                         filteredCsprojFiles.Add(csprojPath);
                     }
                     else
                     {
-                        Debug.Log($"[Antigravity] Skipping {projectName} ({packageType})");
+                        skippedProjectCount++;
+                        Debug.Log($"[Antigravity] Skipping {classification.ProjectName} ({classification.PackageType}) - {classification.Detail}");
                     }
                 }
 
                 if (filteredCsprojFiles.Count == 0)
                 {
                     Debug.LogWarning("[Antigravity] No projects match your filter settings. Check Preferences > Antigravity.");
-                    return;
+                    return 0;
                 }
 
                 string[] csprojFiles = filteredCsprojFiles.ToArray();
@@ -129,12 +142,60 @@ namespace Antigravity.Editor
                 sb.AppendLine("EndGlobal");
 
                 File.WriteAllText(SolutionPath, sb.ToString());
-                Debug.Log($"[Antigravity] Solution generated with {csprojFiles.Length} projects: {SolutionPath}");
+                Debug.Log($"[Antigravity] Solution generated with {csprojFiles.Length} projects, skipped {skippedProjectCount}: {SolutionPath}");
+                return csprojFiles.Length;
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[Antigravity] Failed to generate solution: {ex.Message}");
+                return 0;
             }
+        }
+
+        private static string BuildProjectSelectionReport(out int includedCount, out int skippedCount)
+        {
+            includedCount = 0;
+            skippedCount = 0;
+
+            string[] allCsprojFiles = Directory.GetFiles(ProjectPath, "*.csproj", SearchOption.TopDirectoryOnly);
+            if (allCsprojFiles.Length == 0)
+            {
+                return "[Antigravity] No .csproj files found. Please compile scripts first.";
+            }
+
+            var settings = AntigravitySettings.Instance;
+            var includedBuilder = new StringBuilder();
+            var skippedBuilder = new StringBuilder();
+
+            foreach (string csprojPath in allCsprojFiles)
+            {
+                ProjectClassification classification = ClassifyProject(csprojPath);
+                bool shouldInclude = ShouldIncludePackage(classification.PackageType, settings);
+
+                if (shouldInclude)
+                {
+                    includedCount++;
+                    includedBuilder.AppendLine($"- {classification.ProjectName} [{classification.PackageType}] - {classification.Detail}");
+                }
+                else
+                {
+                    skippedCount++;
+                    skippedBuilder.AppendLine($"- {classification.ProjectName} [{classification.PackageType}] - {classification.Detail}");
+                }
+            }
+
+            var reportBuilder = new StringBuilder();
+            reportBuilder.AppendLine("[Antigravity] Project selection preview");
+            reportBuilder.AppendLine($"Included: {includedCount}");
+            reportBuilder.AppendLine($"Skipped: {skippedCount}");
+            reportBuilder.AppendLine();
+            reportBuilder.AppendLine("Included projects:");
+            reportBuilder.Append(includedCount > 0 ? includedBuilder.ToString() : "- None");
+            reportBuilder.AppendLine();
+            reportBuilder.AppendLine("Skipped projects:");
+            reportBuilder.Append(skippedCount > 0 ? skippedBuilder.ToString() : "- None");
+
+            return reportBuilder.ToString();
         }
 
         /// <summary>
@@ -187,135 +248,78 @@ namespace Antigravity.Editor
             UnknownPackage
         }
 
-        /// <summary>
-        /// Determine the package type based on project name and packages-lock.json
-        /// </summary>
-        private static PackageType DeterminePackageType(string projectName)
+        private static readonly string[] IgnoredPackageNameTokens =
         {
-            if (projectName.StartsWith("Assembly-CSharp"))
+            "com",
+            "unity",
+            "editor",
+            "runtime",
+            "core",
+            "tests",
+            "test",
+            "package",
+            "packages",
+            "tool",
+            "tools",
+            "module",
+            "modules",
+            "sdk",
+            "library",
+            "plugin",
+            "plugins",
+            "installer",
+            "sample",
+            "samples",
+            "thirdparty",
+            "third-party",
+            "nuget"
+        };
+
+        private readonly struct ProjectClassification
+        {
+            public ProjectClassification(string projectName, PackageType packageType, string detail)
             {
-                return PackageType.PlayerProject;
+                ProjectName = projectName;
+                PackageType = packageType;
+                Detail = detail;
             }
 
-            if (projectName == "AntigravityScriptEditor")
+            public string ProjectName { get; }
+            public PackageType PackageType { get; }
+            public string Detail { get; }
+        }
+
+        /// <summary>
+        /// Classify a project and capture how the package type was detected.
+        /// </summary>
+        private static ProjectClassification ClassifyProject(string csprojPath)
+        {
+            string projectName = Path.GetFileNameWithoutExtension(csprojPath);
+
+            if (projectName.StartsWith("Assembly-CSharp"))
             {
-                return PackageType.LocalPackage;
+                return new ProjectClassification(projectName, PackageType.PlayerProject, "Unity player project");
             }
 
             if (!projectName.Contains("."))
             {
-                return PackageType.PlayerProject;
+                return new ProjectClassification(projectName, PackageType.PlayerProject, "Assembly name does not look like a package name");
             }
 
-            if (projectName.StartsWith("com.unity.modules."))
+            if (TryGetPackageInfo(csprojPath, projectName, out PackageInfo packageInfo, out string detail))
             {
-                return PackageType.BuiltinPackage;
+                return new ProjectClassification(
+                    projectName,
+                    ConvertPackageSource(packageInfo.source),
+                    $"{detail}; package={packageInfo.name}; source={packageInfo.source}"
+                );
             }
 
-            if (projectName.StartsWith("com.unity."))
-            {
-                return PackageType.BuiltinPackage;
-            }
-
-            string packagesLockPath = Path.Combine(ProjectPath, "Packages", "packages-lock.json");
-            if (File.Exists(packagesLockPath))
-            {
-                try
-                {
-                    string lockContent = File.ReadAllText(packagesLockPath);
-                    PackageType? detectedType = TryDetectFromPackagesLock(projectName, lockContent);
-                    if (detectedType.HasValue)
-                    {
-                        return detectedType.Value;
-                    }
-                }
-                catch
-                {
-                }
-            }
-
-            string packagesFolder = Path.Combine(ProjectPath, "Packages");
-            if (Directory.Exists(packagesFolder))
-            {
-                string[] packageFolders = Directory.GetDirectories(packagesFolder);
-                foreach (string packageFolder in packageFolders)
-                {
-                    string folderName = Path.GetFileName(packageFolder);
-
-                    if (projectName.StartsWith(folderName, StringComparison.OrdinalIgnoreCase) ||
-                        projectName.Replace(".", "").Contains(folderName.Replace(".", ""), StringComparison.OrdinalIgnoreCase))
-                    {
-                        return PackageType.EmbeddedPackage;
-                    }
-                }
-            }
-
-            return PackageType.PlayerProject;
-        }
-
-        /// <summary>
-        /// Try to detect package type from packages-lock.json content
-        /// </summary>
-        private static PackageType? TryDetectFromPackagesLock(string projectName, string lockContent)
-        {
-            string dependenciesStart = "\"dependencies\"";
-            int depsIndex = lockContent.IndexOf(dependenciesStart);
-            if (depsIndex == -1)
-                return null;
-
-            string searchTerm = projectName.ToLowerInvariant().Replace(".", "").Replace("-", "");
-
-            int searchIndex = depsIndex;
-            while (true)
-            {
-                int packageStart = lockContent.IndexOf("\"com.", searchIndex);
-                if (packageStart == -1)
-                    break;
-
-                int packageNameEnd = lockContent.IndexOf("\"", packageStart + 1);
-                if (packageNameEnd == -1)
-                    break;
-
-                string packageName = lockContent.Substring(packageStart + 1, packageNameEnd - packageStart - 1);
-
-                string packageSearchTerm = packageName.ToLowerInvariant().Replace(".", "").Replace("-", "");
-
-                if (packageSearchTerm.Contains(searchTerm) || searchTerm.Contains(packageSearchTerm))
-                {
-                    int sourceStart = lockContent.IndexOf("\"source\"", packageStart);
-                    if (sourceStart != -1 && sourceStart < packageStart + 500)
-                    {
-                        int sourceValueStart = lockContent.IndexOf("\"", sourceStart + 8);
-                        if (sourceValueStart != -1)
-                        {
-                            sourceValueStart++;
-                            int sourceValueEnd = lockContent.IndexOf("\"", sourceValueStart);
-                            if (sourceValueEnd != -1)
-                            {
-                                string sourceValue = lockContent.Substring(sourceValueStart, sourceValueEnd - sourceValueStart);
-
-                                switch (sourceValue.ToLowerInvariant())
-                                {
-                                    case "git":
-                                        return PackageType.GitPackage;
-                                    case "local":
-                                        return PackageType.LocalPackage;
-                                    case "embedded":
-                                        return PackageType.EmbeddedPackage;
-                                    case "registry":
-                                        return PackageType.RegistryPackage;
-                                    case "builtin":
-                                        return PackageType.BuiltinPackage;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                searchIndex = packageNameEnd;
-            }
-
-            return null;
+            return new ProjectClassification(
+                projectName,
+                PackageType.UnknownPackage,
+                "Could not map any source file in the .csproj to a registered package, and name heuristics found no confident match"
+            );
         }
 
         /// <summary>
@@ -343,6 +347,204 @@ namespace Antigravity.Editor
                     return settings.includeUnknownPackages;
                 default:
                     return true;
+            }
+        }
+
+        private static bool TryGetPackageInfo(string csprojPath, string projectName, out PackageInfo bestMatch, out string detail)
+        {
+            if (TryGetPackageInfoFromCsproj(csprojPath, out bestMatch, out string assetPath))
+            {
+                detail = $"Matched source file {assetPath}";
+                return true;
+            }
+
+            if (TryGetPackageInfoByName(projectName, out bestMatch, out string matchedTerm))
+            {
+                detail = $"Matched by name heuristic via '{matchedTerm}'";
+                return true;
+            }
+
+            detail = null;
+            return false;
+        }
+
+        private static bool TryGetPackageInfoFromCsproj(string csprojPath, out PackageInfo packageInfo, out string matchedAssetPath)
+        {
+            packageInfo = null;
+            matchedAssetPath = null;
+
+            try
+            {
+                XDocument document = XDocument.Load(csprojPath);
+                XNamespace ns = document.Root?.Name.Namespace ?? XNamespace.None;
+
+                foreach (var compileElement in document.Descendants(ns + "Compile"))
+                {
+                    string includePath = compileElement.Attribute("Include")?.Value;
+                    if (string.IsNullOrEmpty(includePath))
+                    {
+                        continue;
+                    }
+
+                    string assetPath = ToUnityAssetPath(includePath);
+                    if (string.IsNullOrEmpty(assetPath))
+                    {
+                        continue;
+                    }
+
+                    PackageInfo foundPackage = PackageInfo.FindForAssetPath(assetPath);
+                    if (foundPackage != null)
+                    {
+                        packageInfo = foundPackage;
+                        matchedAssetPath = assetPath;
+                        return true;
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            return false;
+        }
+
+        private static string ToUnityAssetPath(string includePath)
+        {
+            if (string.IsNullOrEmpty(includePath))
+            {
+                return null;
+            }
+
+            string normalizedPath = includePath.Replace('\\', '/');
+
+            if (normalizedPath.StartsWith("Packages/", StringComparison.OrdinalIgnoreCase))
+            {
+                return normalizedPath;
+            }
+
+            const string packageCacheMarker = "Library/PackageCache/";
+            int packageCacheIndex = normalizedPath.IndexOf(packageCacheMarker, StringComparison.OrdinalIgnoreCase);
+            if (packageCacheIndex >= 0)
+            {
+                string packageRelativePath = normalizedPath.Substring(packageCacheIndex + packageCacheMarker.Length);
+                int firstSlashIndex = packageRelativePath.IndexOf('/');
+
+                if (firstSlashIndex > 0)
+                {
+                    string packageFolder = packageRelativePath.Substring(0, firstSlashIndex);
+                    int versionSeparatorIndex = packageFolder.LastIndexOf('@');
+                    string packageName = versionSeparatorIndex > 0
+                        ? packageFolder.Substring(0, versionSeparatorIndex)
+                        : packageFolder;
+
+                    return $"Packages/{packageName}/{packageRelativePath.Substring(firstSlashIndex + 1)}";
+                }
+            }
+
+            return null;
+        }
+
+        private static bool TryGetPackageInfoByName(string projectName, out PackageInfo bestMatch, out string matchedTerm)
+        {
+            string normalizedProjectName = Normalize(projectName);
+            int bestScore = -1;
+            bestMatch = null;
+            matchedTerm = null;
+
+            foreach (var packageInfo in PackageInfo.GetAllRegisteredPackages())
+            {
+                int score = GetPackageMatchScore(normalizedProjectName, packageInfo.name, out string currentMatchedTerm);
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestMatch = packageInfo;
+                    matchedTerm = currentMatchedTerm;
+                }
+            }
+
+            return bestMatch != null;
+        }
+
+        private static int GetPackageMatchScore(string normalizedProjectName, string packageName, out string matchedTerm)
+        {
+            string normalizedPackageName = Normalize(packageName);
+            matchedTerm = null;
+            if (string.IsNullOrEmpty(normalizedProjectName) || string.IsNullOrEmpty(normalizedPackageName))
+            {
+                return -1;
+            }
+
+            if (normalizedProjectName.Equals(normalizedPackageName, StringComparison.OrdinalIgnoreCase))
+            {
+                matchedTerm = packageName;
+                return normalizedPackageName.Length + 1000;
+            }
+
+            if (normalizedProjectName.StartsWith(normalizedPackageName, StringComparison.OrdinalIgnoreCase))
+            {
+                matchedTerm = packageName;
+                return normalizedPackageName.Length;
+            }
+
+            int bestTokenScore = -1;
+            string bestToken = null;
+            foreach (string token in packageName.Split('.'))
+            {
+                string trimmedToken = token.Trim();
+                if (trimmedToken.Length < 4)
+                {
+                    continue;
+                }
+
+                bool isIgnoredToken = Array.Exists(
+                    IgnoredPackageNameTokens,
+                    ignoredToken => ignoredToken.Equals(trimmedToken, StringComparison.OrdinalIgnoreCase)
+                );
+
+                if (isIgnoredToken)
+                {
+                    continue;
+                }
+
+                string normalizedToken = Normalize(trimmedToken);
+                if (normalizedProjectName.Contains(normalizedToken, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (normalizedToken.Length > bestTokenScore)
+                    {
+                        bestTokenScore = normalizedToken.Length;
+                        bestToken = trimmedToken;
+                    }
+                }
+            }
+
+            matchedTerm = bestToken;
+            return bestTokenScore;
+        }
+
+        private static string Normalize(string value)
+        {
+            return value.Replace(".", "").Replace("-", "").ToLowerInvariant();
+        }
+
+        private static PackageType ConvertPackageSource(PackageSource source)
+        {
+            switch (source)
+            {
+                case PackageSource.Embedded:
+                    return PackageType.EmbeddedPackage;
+                case PackageSource.Local:
+                    return PackageType.LocalPackage;
+                case PackageSource.Registry:
+                    return PackageType.RegistryPackage;
+                case PackageSource.Git:
+                    return PackageType.GitPackage;
+                case PackageSource.BuiltIn:
+                    return PackageType.BuiltinPackage;
+                case PackageSource.LocalTarball:
+                    return PackageType.LocalTarball;
+                default:
+                    return PackageType.UnknownPackage;
             }
         }
     }

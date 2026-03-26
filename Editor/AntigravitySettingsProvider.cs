@@ -18,22 +18,24 @@ namespace Antigravity.Editor
                 guiHandler = (searchContext) =>
                 {
                     var settings = AntigravitySettings.Instance;
+                    EditorGUI.BeginChangeCheck();
 
                     EditorGUILayout.Space(10);
 
-                    EditorGUILayout.LabelField("External Script Editor", EditorStyles.boldLabel);
+                    EditorGUILayout.LabelField("Local Machine Settings", EditorStyles.boldLabel);
                     settings.executablePath = EditorGUILayout.TextField(
-                        new GUIContent("Executable Path", "Path to Antigravity executable"),
+                        new GUIContent("Executable Path", "Path to the Antigravity executable on this machine"),
                         settings.executablePath
                     );
 
                     settings.argumentsFormat = EditorGUILayout.TextField(
-                        new GUIContent("Arguments Format", "Arguments format. Variables: $(File), $(Line), $(Column)"),
+                        new GUIContent("Arguments Format", "Variables: $(ProjectPath), $(File), $(Line), $(Column)"),
                         settings.argumentsFormat
                     );
 
                     EditorGUILayout.Space(15);
 
+                    EditorGUILayout.LabelField("Shared Project Settings", EditorStyles.boldLabel);
                     EditorGUILayout.LabelField("Generate .csproj files for:", EditorStyles.boldLabel);
 
                     EditorGUILayout.HelpBox(
@@ -86,6 +88,13 @@ namespace Antigravity.Editor
 
                     EditorGUILayout.Space(15);
 
+                    if (GUILayout.Button("Preview Project Selection", GUILayout.Height(24)))
+                    {
+                        AntigravitySolutionSync.PreviewProjectSelection();
+                    }
+
+                    EditorGUILayout.Space(5);
+
                     if (GUILayout.Button("Regenerate Project Files", GUILayout.Height(30)))
                     {
                         AntigravitySolutionSync.RegenerateSolution();
@@ -104,7 +113,7 @@ namespace Antigravity.Editor
                         }
                     }
 
-                    if (GUI.changed)
+                    if (EditorGUI.EndChangeCheck())
                     {
                         settings.Save();
                     }

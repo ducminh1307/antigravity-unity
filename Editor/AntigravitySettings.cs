@@ -12,16 +12,15 @@ namespace Antigravity.Editor
     {
         private const string SETTINGS_PATH = "Assets/Editor/AntigravitySettings.asset";
         private const string SETTINGS_FOLDER = "Assets/Editor";
+        private const string ExecutablePathKey = "AntigravityEditor.Path";
+        private const string ArgumentsFormatKey = "AntigravityEditor.ArgumentsFormat";
+        private const string HasInitializedKey = "AntigravityEditor.HasInitialized";
+        private const string LegacyExecutablePathKey = "AntigravityEditor_Path";
+        private const string LegacyArgumentsKey = "AntigravityEditor_Arguments";
+        private const string OldDefaultArgumentsFormat = "$(File):$(Line)";
+        private const string DefaultArgumentsFormatValue = "$(ProjectPath) --goto $(File):$(Line):$(Column)";
 
         private static AntigravitySettings _instance;
-
-        [Header("Executable")]
-        [Tooltip("Path to Antigravity executable")]
-        public string executablePath = "";
-
-        [Header("Command Format")]
-        [Tooltip("Arguments format. Variables: $(File), $(Line), $(Column)")]
-        public string argumentsFormat = "$(File):$(Line)";
 
         [Header("Generate .csproj files for:")]
         [Tooltip("Include embedded packages in solution")]
@@ -47,10 +46,6 @@ namespace Antigravity.Editor
 
         [Tooltip("Include player projects (Assembly-CSharp, etc.) in solution")]
         public bool includePlayerProjects = true;
-
-        [HideInInspector]
-        [Tooltip("Has the first-time setup been completed?")]
-        public bool hasInitialized = false;
 
         /// <summary>
         /// Get or create the settings instance
@@ -84,7 +79,6 @@ namespace Antigravity.Editor
             if (settings == null)
             {
                 settings = CreateInstance<AntigravitySettings>();
-                MigrateFromEditorPrefs(settings);
                 if (!Directory.Exists(SETTINGS_FOLDER))
                 {
                     Directory.CreateDirectory(SETTINGS_FOLDER);
@@ -94,21 +88,50 @@ namespace Antigravity.Editor
                 AssetDatabase.SaveAssets();
             }
 
+            MigrateUserPreferences();
             return settings;
         }
 
-        private static void MigrateFromEditorPrefs(AntigravitySettings settings)
+        private static void MigrateUserPreferences()
         {
-            // Migrate old EditorPrefs settings
-            if (EditorPrefs.HasKey("AntigravityEditor_Path"))
+            if (!EditorPrefs.HasKey(ExecutablePathKey) && EditorPrefs.HasKey(LegacyExecutablePathKey))
             {
-                settings.executablePath = EditorPrefs.GetString("AntigravityEditor_Path", "");
+                EditorPrefs.SetString(ExecutablePathKey, EditorPrefs.GetString(LegacyExecutablePathKey, ""));
             }
 
-            if (EditorPrefs.HasKey("AntigravityEditor_Arguments"))
+            if (!EditorPrefs.HasKey(ArgumentsFormatKey))
             {
-                settings.argumentsFormat = EditorPrefs.GetString("AntigravityEditor_Arguments", "$(File):$(Line)");
+                string legacyValue = EditorPrefs.HasKey(LegacyArgumentsKey)
+                    ? EditorPrefs.GetString(LegacyArgumentsKey, OldDefaultArgumentsFormat)
+                    : DefaultArgumentsFormatValue;
+
+                EditorPrefs.SetString(
+                    ArgumentsFormatKey,
+                    legacyValue == OldDefaultArgumentsFormat ? DefaultArgumentsFormatValue : legacyValue
+                );
             }
+        }
+
+        public string executablePath
+        {
+            get => EditorPrefs.GetString(ExecutablePathKey, "");
+            set => EditorPrefs.SetString(ExecutablePathKey, value ?? "");
+        }
+
+        public string argumentsFormat
+        {
+            get => EditorPrefs.GetString(ArgumentsFormatKey, DefaultArgumentsFormatValue);
+            set
+            {
+                string normalizedValue = string.IsNullOrWhiteSpace(value) ? DefaultArgumentsFormatValue : value.Trim();
+                EditorPrefs.SetString(ArgumentsFormatKey, normalizedValue);
+            }
+        }
+
+        public bool hasInitialized
+        {
+            get => EditorPrefs.GetBool(HasInitializedKey, false);
+            set => EditorPrefs.SetBool(HasInitializedKey, value);
         }
 
         /// <summary>
@@ -126,7 +149,7 @@ namespace Antigravity.Editor
         public void ResetToDefaults()
         {
             executablePath = "";
-            argumentsFormat = "$(File):$(Line)";
+            argumentsFormat = DefaultArgumentsFormatValue;
             includeEmbeddedPackages = true;
             includeLocalPackages = true;
             includeRegistryPackages = false;
@@ -153,7 +176,7 @@ namespace Antigravity.Editor
             // Delay the heavy operations to avoid asset database conflicts
             EditorApplication.delayCall += () =>
             {
-                // Run solution regeneration (without dialog for first-time)
+                AntigravityWorkspaceSetup.EnsureWorkspaceSetup();
                 AntigravitySolutionSync.GenerateSolutionSilent();
                 Debug.Log("[Antigravity] First-time setup completed. Solution and workspace configured.");
             };

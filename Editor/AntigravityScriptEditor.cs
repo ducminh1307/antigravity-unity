@@ -160,14 +160,7 @@ namespace Antigravity.Editor
             projectPath = projectPath.Replace("/", Path.DirectorySeparatorChar.ToString());
             filePath = filePath.Replace("/", Path.DirectorySeparatorChar.ToString());
 
-            // Quote paths if they contain spaces
-            string quotedProject = projectPath.Contains(" ") ? $"\"{projectPath}\"" : projectPath;
-            string quotedFile = filePath.Contains(" ") ? $"\"{filePath}\"" : filePath;
-
-            // Try format: antigravity "project" --goto "file:line:column"
-            // This is similar to VS Code format: code "project" --goto "file:line:column"
-            string gotoArg = $"{quotedFile}:{Math.Max(1, line)}:{Math.Max(1, column)}";
-            string arguments = $"{quotedProject} --goto {gotoArg}";
+            string arguments = BuildOpenFileArguments(projectPath, filePath, line, column);
 
             return LaunchAntigravity(arguments);
         }
@@ -220,8 +213,8 @@ namespace Antigravity.Editor
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.HelpBox(
-                "Variables: $(File) = file path, $(Line) = line number, $(Column) = column number\n" +
-                "Example: \"$(File):$(Line)\" or \"--goto $(Line) $(File)\"",
+                "Variables: $(ProjectPath), $(File), $(Line), $(Column)\n" +
+                "Example: $(ProjectPath) --goto $(File):$(Line):$(Column)",
                 MessageType.Info
             );
 
@@ -305,7 +298,9 @@ namespace Antigravity.Editor
                 startInfo.FileName = editorPath;
                 startInfo.Arguments = arguments;
                 startInfo.UseShellExecute = true;
-                startInfo.WorkingDirectory = Path.GetDirectoryName(editorPath) ?? "";
+                startInfo.WorkingDirectory = File.Exists(editorPath)
+                    ? Path.GetDirectoryName(editorPath) ?? Directory.GetParent(Application.dataPath).FullName
+                    : Directory.GetParent(Application.dataPath).FullName;
 
                 Process process = Process.Start(startInfo);
 
@@ -343,6 +338,24 @@ namespace Antigravity.Editor
         }
 
         #endregion
+
+        private static string BuildOpenFileArguments(string projectPath, string filePath, int line, int column)
+        {
+            int safeLine = Math.Max(1, line);
+            int safeColumn = Math.Max(1, column);
+            string format = ArgumentsFormat;
+
+            return format
+                .Replace("$(ProjectPath)", QuoteArgument(projectPath))
+                .Replace("$(File)", QuoteArgument(filePath))
+                .Replace("$(Line)", safeLine.ToString())
+                .Replace("$(Column)", safeColumn.ToString());
+        }
+
+        private static string QuoteArgument(string value)
+        {
+            return $"\"{value.Replace("\"", "\\\"")}\"";
+        }
 
         #region Detection
 

@@ -7,15 +7,9 @@ namespace Antigravity.Editor
     /// <summary>
     /// Generates workspace settings for Antigravity IDE to hide unnecessary Unity folders.
     /// </summary>
-    [InitializeOnLoad]
     public static class AntigravityWorkspaceSetup
     {
-        static AntigravityWorkspaceSetup()
-        {
-            EditorApplication.delayCall += AutoSetupWorkspace;
-        }
-
-        private static void AutoSetupWorkspace()
+        public static void EnsureWorkspaceSetup()
         {
             if (!IsWorkspaceSetup)
             {
@@ -144,13 +138,14 @@ namespace Antigravity.Editor
             }
 
             File.WriteAllText(SettingsPath, SETTINGS_CONTENT);
+            File.WriteAllText(OmnisharpPath, OMNISHARP_CONTENT);
 
             AssetDatabase.Refresh();
 
             Debug.Log("[Antigravity] Workspace settings created at: " + SettingsPath);
             EditorUtility.DisplayDialog(
                 "Antigravity Workspace Setup",
-                "Workspace settings created successfully!\n\nClose and reopen the project in Antigravity to apply changes.",
+                "Workspace settings and omnisharp.json created successfully.\n\nClose and reopen the project in Antigravity to apply changes.",
                 "OK");
         }
 

@@ -1,32 +1,57 @@
 using System;
+using System.IO;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using UnityEditor;
+using UnityEditor.Callbacks;
 using UnityEngine;
 
 namespace Antigravity.Editor
 {
     /// <summary>
-    /// Utility class for parsing stack traces.
-    /// Can be used for future console-specific features.
+    /// Integrates Unity Console double-click behavior with Antigravity.
     /// </summary>
     public static class AntigravityConsoleIntegration
     {
-        // Regex to match file paths and line numbers in stack traces
-        // Matches patterns like: "at ClassName.Method() in C:\path\file.cs:line 42"
-        // Or: "(at Assets/Scripts/MyScript.cs:42)"
-        private static readonly Regex StackTraceRegex = new Regex(
-            @"(?:at\s+.+\s+in\s+)?(?<path>[A-Za-z]:[\\/][^\s:]+\.cs|Assets[\\/][^\s:]+\.cs):(?:line\s+)?(?<line>\d+)",
-            RegexOptions.Compiled | RegexOptions.IgnoreCase
-        );
+        private static readonly Type ConsoleWindowType = typeof(EditorWindow).Assembly.GetType("UnityEditor.ConsoleWindow");
+        private static readonly FieldInfo ActiveTextField = ConsoleWindowType?.GetField("m_ActiveText", BindingFlags.Instance | BindingFlags.NonPublic);
 
-        private static readonly Regex SimplePathRegex = new Regex(
-            @"\(at\s+(?<path>[^:]+):(?<line>\d+)\)",
+        private static readonly Regex UnityStackTraceRegex = new Regex(
+            @"\(at\s+(?<path>.+):(?<line>\d+)\)",
             RegexOptions.Compiled
         );
 
+        private static readonly Regex ManagedStackTraceRegex = new Regex(
+            @"\sin\s+(?<path>.+\.cs):line\s+(?<line>\d+)",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase
+        );
+
+        private static string ProjectPath => Directory.GetParent(Application.dataPath).FullName;
+
+        [OnOpenAsset(0)]
+        private static bool OnOpenAsset(int instanceID, int line)
+        {
+            if (!IsAntigravitySelected() || !IsConsoleFocused())
+            {
+                return false;
+            }
+
+            if (TryGetConsoleFileLocation(out string filePath, out int lineNumber))
+            {
+                return AntigravityScriptEditor.OpenFileExternal(filePath, lineNumber, 1);
+            }
+
+            string assetPath = AssetDatabase.GetAssetPath(instanceID);
+            if (TryNormalizePath(assetPath, out filePath))
+            {
+                return AntigravityScriptEditor.OpenFileExternal(filePath, Math.Max(1, line), 1);
+            }
+
+            return false;
+        }
+
         /// <summary>
-        /// Parse a stack trace line to extract file path and line number
+        /// Parse a stack trace line to extract file path and line number.
         /// </summary>
         public static bool TryParseStackTrace(string stackTrace, out string filePath, out int lineNumber)
         {
@@ -34,28 +59,88 @@ namespace Antigravity.Editor
             lineNumber = 0;
 
             if (string.IsNullOrEmpty(stackTrace))
-                return false;
-
-            var simpleMatch = SimplePathRegex.Match(stackTrace);
-            if (simpleMatch.Success)
             {
-                filePath = simpleMatch.Groups["path"].Value;
-                lineNumber = int.Parse(simpleMatch.Groups["line"].Value);
-
-                if (filePath.StartsWith("Assets"))
-                {
-                    filePath = System.IO.Path.GetFullPath(filePath);
-                }
-
-                return true;
+                return false;
             }
 
-            var match = StackTraceRegex.Match(stackTrace);
-            if (match.Success)
+            return TryMatchStackTrace(UnityStackTraceRegex, stackTrace, out filePath, out lineNumber) ||
+                   TryMatchStackTrace(ManagedStackTraceRegex, stackTrace, out filePath, out lineNumber);
+        }
+
+        private static bool IsAntigravitySelected()
+        {
+            string externalEditorPath = EditorPrefs.GetString("kScriptsDefaultApp", string.Empty);
+            return !string.IsNullOrEmpty(externalEditorPath) &&
+                   externalEditorPath.IndexOf("antigravity", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static bool IsConsoleFocused()
+        {
+            return ConsoleWindowType != null &&
+                   EditorWindow.focusedWindow != null &&
+                   EditorWindow.focusedWindow.GetType() == ConsoleWindowType;
+        }
+
+        private static bool TryGetConsoleFileLocation(out string filePath, out int lineNumber)
+        {
+            filePath = null;
+            lineNumber = 0;
+
+            if (ActiveTextField == null || EditorWindow.focusedWindow == null)
             {
-                filePath = match.Groups["path"].Value;
-                lineNumber = int.Parse(match.Groups["line"].Value);
-                return true;
+                return false;
+            }
+
+            string activeText = ActiveTextField.GetValue(EditorWindow.focusedWindow) as string;
+            return TryParseStackTrace(activeText, out filePath, out lineNumber);
+        }
+
+        private static bool TryMatchStackTrace(Regex regex, string stackTrace, out string filePath, out int lineNumber)
+        {
+            filePath = null;
+            lineNumber = 0;
+
+            Match match = regex.Match(stackTrace);
+            if (!match.Success || !int.TryParse(match.Groups["line"].Value, out lineNumber))
+            {
+                return false;
+            }
+
+            return TryNormalizePath(match.Groups["path"].Value, out filePath);
+        }
+
+        private static bool TryNormalizePath(string rawPath, out string filePath)
+        {
+            filePath = null;
+
+            if (string.IsNullOrWhiteSpace(rawPath))
+            {
+                return false;
+            }
+
+            string normalizedPath = rawPath.Trim().Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
+
+            if (Path.IsPathRooted(normalizedPath))
+            {
+                string absolutePath = Path.GetFullPath(normalizedPath);
+                if (File.Exists(absolutePath))
+                {
+                    filePath = absolutePath;
+                    return true;
+                }
+
+                return false;
+            }
+
+            if (normalizedPath.StartsWith("Assets", StringComparison.OrdinalIgnoreCase) ||
+                normalizedPath.StartsWith("Packages", StringComparison.OrdinalIgnoreCase))
+            {
+                string absolutePath = Path.GetFullPath(Path.Combine(ProjectPath, normalizedPath));
+                if (File.Exists(absolutePath))
+                {
+                    filePath = absolutePath;
+                    return true;
+                }
             }
 
             return false;
